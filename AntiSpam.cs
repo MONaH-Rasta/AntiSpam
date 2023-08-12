@@ -1,35 +1,38 @@
-using Newtonsoft.Json;
-using Oxide.Core.Libraries.Covalence;
-using Oxide.Core.Plugins;
+using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Text;
-using System;
+
+using Newtonsoft.Json;
+using Oxide.Core;
+using Oxide.Core.Libraries.Covalence;
+using Oxide.Core.Plugins;
+
+using Pool = Facepunch.Pool;
 
 namespace Oxide.Plugins
 {
-    [Info("Anti Spam", "MON@H", "2.0.2")]
+    [Info("Anti Spam", "MON@H", "2.1.0")]
     [Description("Filters spam and impersonation in player names and chat messages.")]
 
     class AntiSpam : CovalencePlugin
     {
         #region Variables
 
-        [PluginReference] private Plugin BetterChat;
+        [PluginReference] private readonly Plugin BetterChat;
 
         private const string PermissionImmunity = "antispam.immunity";
         private const string ColorAdmin = "#AAFF55";
         private const string ColorDeveloper = "#FFAA55";
         private const string ColorPlayer = "#55AAFF";
 
-        private readonly List<Regex> _listRegexImpersonation = new List<Regex>();
-        private readonly List<Regex> _listRegexSpam = new List<Regex>();
         private readonly StringBuilder _sb = new StringBuilder();
+        
+        private Regex _regexSpam;
+        private Regex _regexImpersonation;
+        private Regex _regexProfanities;
 
-        private IPlayer _iPlayer;
-        private string _newName;
-        private string _text;
-        private string _newText;
+        private readonly object _true = true;
 
         #endregion Variables
 
@@ -43,11 +46,15 @@ namespace Oxide.Plugins
         {
             permission.RegisterPermission(PermissionImmunity, this);
 
-            CreateRegexCache();
+            CacheRegex();
+            CacheProfanities();
 
-            foreach (IPlayer player in players.Connected)
+            if (_configData.GlobalSettings.FilterPlayerNames)
             {
-                HandleName(player);
+                foreach (IPlayer player in players.Connected)
+                {
+                    HandleName(player);
+                }
             }
 
             SubscribeHooks();
@@ -61,20 +68,41 @@ namespace Oxide.Plugins
 
         private class ConfigData
         {
+            [JsonProperty(PropertyName = "Global settings")]
+            public GlobalSettings GlobalSettings = new GlobalSettings();
+
+            [JsonProperty(PropertyName = "Spam settings")]
+            public SpamSettings SpamSettings = new SpamSettings();
+
+            [JsonProperty(PropertyName = "Impersonation settings")]
+            public ImpersonationSettings ImpersonationSettings = new ImpersonationSettings();
+        }
+
+        private class GlobalSettings
+        {
             [JsonProperty(PropertyName = "Enable logging")]
             public bool LoggingEnabled = false;
-
-            [JsonProperty(PropertyName = "Filter player names")]
-            public bool FilterPlayerNames = false;
 
             [JsonProperty(PropertyName = "Filter chat messages")]
             public bool FilterChatMessages = false;
 
+            [JsonProperty(PropertyName = "Filter player names")]
+            public bool FilterPlayerNames = false;
+
+            [JsonProperty(PropertyName = "Use UFilter plugin on player names")]
+            public bool UFilterPlayerNames = false;
+
+            [JsonProperty(PropertyName = "Replacement for empty name")]
+            public string ReplacementEmptyName = "Player-";
+        }
+
+        private class SpamSettings
+        {
             [JsonProperty(PropertyName = "Use regex")]
             public bool UseRegex = false;
 
-            [JsonProperty(PropertyName = "Regex spam list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> RegexSpamList = new List<string>()
+            [JsonProperty(PropertyName = "Regex list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+            public List<string> RegexList = new List<string>()
             {
                 "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
                 "(:\\d{3,5})",
@@ -86,18 +114,37 @@ namespace Oxide.Plugins
                 "((.+)?rust(.+)?\\#+)"
             };
 
-            [JsonProperty(PropertyName = "Regex impersonation list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> RegexImpersonationList = new List<string>()
+            [JsonProperty(PropertyName = "Use blacklist")]
+            public bool UseBlacklist = false;
+
+            [JsonProperty(PropertyName = "Blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+            public List<string> Blacklist = new List<string>()
+            {
+                "#SPAMRUST",
+                "#BESTRUST"
+            };
+
+            [JsonProperty(PropertyName = "Replacement for spam")]
+            public string Replacement = "";
+        }
+
+        private class ImpersonationSettings
+        {
+            [JsonProperty(PropertyName = "Use regex")]
+            public bool UseRegex = false;
+
+            [JsonProperty(PropertyName = "Regex list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+            public List<string> RegexList = new List<string>()
             {
                 "([Ааa4][Ддd][Ммm][Ииi1][Ннn])",
                 "([Ммm][Ооo0][Ддd][Ееe3][Ррr])"
             };
 
-            [JsonProperty(PropertyName = "Use impersonation blacklist")]
-            public bool UseBlacklistImpersonation = false;
+            [JsonProperty(PropertyName = "Use blacklist")]
+            public bool UseBlacklist = false;
 
-            [JsonProperty(PropertyName = "Impersonation blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> BlacklistImpersonation = new List<string>()
+            [JsonProperty(PropertyName = "Blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+            public List<string> Blacklist = new List<string>()
             {
                 "Admin",
                 "Administrator",
@@ -105,24 +152,8 @@ namespace Oxide.Plugins
                 "Moderator"
             };
 
-            [JsonProperty(PropertyName = "Use spam blacklist")]
-            public bool UseBlacklistSpam = false;
-
-            [JsonProperty(PropertyName = "Spam blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> BlacklistSpam = new List<string>()
-            {
-                "#SPAMRUST",
-                "#BESTRUST"
-            };
-
             [JsonProperty(PropertyName = "Replacement for impersonation")]
-            public string ReplacementImpersonation = "";
-
-            [JsonProperty(PropertyName = "Replacement for spam")]
-            public string ReplacementSpam = "";
-
-            [JsonProperty(PropertyName = "Replacement for empty name")]
-            public string ReplacementEmptyName = "Player-";
+            public string Replacement = "";
         }
 
         protected override void LoadConfig()
@@ -169,25 +200,24 @@ namespace Oxide.Plugins
 
         private object OnBetterChat(Dictionary<string, object> data)
         {
-            _iPlayer = data["Player"] as IPlayer;
-            _text = data["Message"] as string;
+            IPlayer player = (IPlayer)data["Player"];
+            string text = (string)data["Message"];
 
-            if (string.IsNullOrEmpty(_text) || permission.UserHasPermission(_iPlayer.Id, PermissionImmunity))
+            if (string.IsNullOrWhiteSpace(text) || permission.UserHasPermission(player.Id, PermissionImmunity))
             {
                 return null;
             }
 
-            _newText = GetSpamFreeMessage(_iPlayer, _text);
-
-            if (string.IsNullOrEmpty(_newText))
+            string newText = GetSpamFreeMessage(player, text);
+            if (string.IsNullOrWhiteSpace(newText))
             {
                 data["CancelOption"] = 2;
                 return data;
             }
 
-            if (_newText != _text)
+            if (newText != text)
             {
-                data["Message"] = _newText;
+                data["Message"] = newText;
                 return data;
             }
 
@@ -195,181 +225,234 @@ namespace Oxide.Plugins
         }
 
 #if RUST
-        private object OnPlayerChat(BasePlayer basePlayer, string message, ConVar.Chat.ChatChannel channel)
-        {
-            _iPlayer = basePlayer.IPlayer;
-
-            return HandleChatMessage(_iPlayer, message, (int)channel);
-        }
+        private object OnPlayerChat(BasePlayer basePlayer, string message, ConVar.Chat.ChatChannel channel) => HandleChatMessage(basePlayer.IPlayer, message, (int)channel);
 #else
         private object OnUserChat(IPlayer player, string message) => HandleChatMessage(player, message);
 #endif
+
+
+        private void OnPluginLoaded(Plugin plugin)
+        {
+            if (plugin == null)
+            {
+                return;
+            }
+
+            if (plugin.Name == "UFilter")
+            {
+                CacheProfanities();
+            }
+        }
+
+        private void OnProfanityAdded(string profanity) => CacheProfanities();
+        private void RemoveProfanity(string profanity) => CacheProfanities();
 
         #endregion Oxide Hooks
 
         #region Core Methods
 
-        private void CreateRegexCache()
+        public void CacheRegex()
         {
-            if (!_configData.UseRegex)
+            List<string> pattern = Pool.GetList<string>();
+
+            if (_configData.SpamSettings.UseRegex)
             {
-                return;          
+                pattern.AddRange(_configData.SpamSettings.RegexList);
             }
 
-            foreach (string spamRegex in _configData.RegexSpamList)
+            if (_configData.SpamSettings.UseBlacklist)
             {
-                _listRegexSpam.Add(new Regex(spamRegex, RegexOptions.IgnoreCase | RegexOptions.Compiled));
+                foreach (string item in _configData.SpamSettings.Blacklist)
+                {
+                    pattern.Add($"^{Regex.Escape(item)}$");
+                }
             }
 
-            foreach (string adminRegex in _configData.RegexImpersonationList)
+            if (pattern.Count > 0)
             {
-                _listRegexImpersonation.Add(new Regex(adminRegex, RegexOptions.IgnoreCase | RegexOptions.Compiled));
+                _regexSpam = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
             }
+
+            pattern.Clear();
+
+            if (_configData.ImpersonationSettings.UseRegex)
+            {
+                pattern.AddRange(_configData.ImpersonationSettings.RegexList);
+            }
+
+            if (_configData.ImpersonationSettings.UseBlacklist)
+            {
+                foreach (string item in _configData.ImpersonationSettings.Blacklist)
+                {
+                    pattern.Add($"^{Regex.Escape(item)}$");
+                }
+            }
+
+            if (pattern.Count > 0)
+            {
+                _regexImpersonation = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            }
+
+            Pool.FreeList(ref pattern);
         }
 
-        private void HandleName(IPlayer player)
+        public void CacheProfanities()
+        {
+            if (!_configData.GlobalSettings.UFilterPlayerNames)
+            {
+                _regexProfanities = null;
+                return;
+            }
+
+            Plugin plugin = plugins.Find("UFilter");
+
+            if (!IsPluginLoaded(plugin))
+            {
+                PrintWarning("Use UFilter plugin on chat messages is set to true in config, but the UFilter plugin is not loaded! Please load the UFilter plugin and then reload this plugin.");
+                return;
+            }
+
+            if (plugin.Version < new VersionNumber(5, 1, 2))
+            {
+                PrintError("UFilter plugin must be version 5.1.2 or higher. Please update the UFilter plugin and then reload this plugin.");
+                return;
+            }
+
+            List<string> pattern = Pool.GetList<string>();
+
+            string[] profanities = plugin.Call("GetProfanities") as string[] ?? Array.Empty<string>();
+            string[] allowedProfanity = plugin.Call("GetAllowedProfanity") as string[] ?? Array.Empty<string>();
+
+            foreach (string profanity in profanities)
+            {
+                if (!allowedProfanity.Contains(profanity) && !pattern.Contains(profanity))
+                {
+                    pattern.Add($"^{Regex.Escape(profanity)}$");
+                }
+            }
+
+            if (pattern.Count > 0)
+            {
+                pattern.Sort();
+                _regexProfanities = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            }
+
+            Pool.FreeList(ref pattern);
+        }
+
+        public void HandleName(IPlayer player)
         {
             if (player == null || !player.IsConnected || permission.UserHasPermission(player.Id, PermissionImmunity))
             {
                 return;
             }
 
-            _newName = GetClearName(player);
-
-            if (_newName != player.Name)
+            string newName = GetClearName(player);
+            if (newName != player.Name)
             {
-                Log($"{player.Id} renaming '{player.Name}' to '{_newName}'");
-
-                player.Rename(_newName);
+                Log($"{player.Id} renaming '{player.Name}' to '{newName}'");
+                player.Rename(newName);
             }
         }
 
-        private string GetClearName(IPlayer player)
+        public object HandleChatMessage(IPlayer player, string message, int channel = 0)
         {
-            if (permission.UserHasPermission(player.Id, PermissionImmunity))
-            {
-                return player.Name;
-            }
-
-            _newName = GetSpamFreeText(player.Name);
-
-            _newName = GetImpersonationFreeText(_newName);
-
-            if (string.IsNullOrEmpty(_newName))
-            {
-                _newName = $"{_configData.ReplacementEmptyName}{player.Id.Substring(11, 6)}";
-            }
-
-            return _newName.Trim();
-        }
-
-        private object HandleChatMessage(IPlayer player, string message, int channel = 0)
-        {
-            if (string.IsNullOrEmpty(message)
+            if (string.IsNullOrWhiteSpace(message)
             || IsPluginLoaded(BetterChat)
             || permission.UserHasPermission(player.Id, PermissionImmunity))
             {
                 return null;
             }
 
-            _newText = GetSpamFreeMessage(player, message);
-
-            if (string.IsNullOrEmpty(_newText))
+            string newText = GetSpamFreeMessage(player, message);
+            if (string.IsNullOrWhiteSpace(newText))
             {
-                return true;
+                return _true;
             }
 
-            if (_newText != message)
+            if (newText != message)
             {
-                Broadcast(player, covalence.FormatText($"[{(_iPlayer.IsAdmin ? ColorAdmin : ColorPlayer)}]{_iPlayer.Name}[/#]: {_newText}"), channel);
+                Broadcast(player, covalence.FormatText($"[{(player.IsAdmin ? ColorAdmin : ColorPlayer)}]{player.Name}[/#]: {newText}"), channel);
 
-                return true;
+                return _true;
             }
 
             return null;
         }
 
-        private string GetSpamFreeMessage(IPlayer player, string message)
+        public string GetClearName(IPlayer player)
         {
-            if (player == null || string.IsNullOrEmpty(message))
+            if (permission.UserHasPermission(player.Id, PermissionImmunity))
+            {
+                return player.Name;
+            }
+
+            string newName = GetSpamFreeText(player.Name);
+            newName = GetImpersonationFreeText(newName);
+            if (_regexProfanities != null)
+            {
+                newName = _regexProfanities.Replace(newName, _configData.SpamSettings.Replacement);
+            }
+
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                newName = $"{_configData.GlobalSettings.ReplacementEmptyName}{player.Id.Substring(11, 6)}";
+            }
+
+            return newName.Trim();
+        }
+
+        public string GetSpamFreeMessage(IPlayer player, string message)
+        {
+            if (player == null || string.IsNullOrWhiteSpace(message))
             {
                 return null;
             }
 
-            _newText = GetSpamFreeText(message);
-
-            if (_newText != message)
+            string newText = GetSpamFreeText(message);
+            if (newText != message)
             {
                 Log($"{player.Id} spam detected in message: {message}");
 
-                return _newText;
+                return newText;
             }
 
             return message;
         }
 
+        #endregion Core Methods
+
+        #region API
+
         private string GetSpamFreeText(string text)
         {
-            if (string.IsNullOrEmpty(text))
+            if (string.IsNullOrWhiteSpace(text))
             {
                 return string.Empty;
             }
 
-            if (_configData.UseBlacklistSpam)
-            {
-                _sb.Length = 0;
-                _sb.Append(text);
-
-                foreach (string spamKeyword in _configData.BlacklistSpam)
-                {
-                    _sb.Replace(spamKeyword, _configData.ReplacementSpam);
-                }
-
-                text = _sb.ToString().Trim();
-            }
-
-            if (_configData.UseRegex)
-            {
-                foreach (Regex regex in _listRegexSpam)
-                {
-                    text = regex.Replace(text, _configData.ReplacementSpam).Trim();
-                }
-            }
-
-            return text;
+            return _regexSpam != null ? _regexSpam.Replace(text, _configData.SpamSettings.Replacement) : text;
         }
 
         private string GetImpersonationFreeText(string text)
         {
-            if (_configData.UseBlacklistImpersonation)
+            if (string.IsNullOrWhiteSpace(text))
             {
-                _sb.Length = 0;
-                _sb.Append(text);
-
-                foreach (string impersonation in _configData.BlacklistImpersonation)
-                {
-                    _sb.Replace(impersonation, _configData.ReplacementImpersonation);
-                }
-
-                text = _sb.ToString().Trim();
+                return string.Empty;
             }
 
-            if (_configData.UseRegex)
-            {
-                foreach (Regex regexImpersonation in _listRegexImpersonation)
-                {
-                    text = regexImpersonation.Replace(text, _configData.ReplacementImpersonation).Trim();
-                }
-            }
-
-            return text;
+            return _regexImpersonation != null ? _regexImpersonation.Replace(text, _configData.SpamSettings.Replacement) : text;
         }
 
-        #endregion Core Methods
+        private Regex GetRegexImpersonation() => _regexImpersonation;
+        private Regex GetRegexProfanities() => _regexProfanities;
+        private Regex GetRegexSpam() => _regexSpam;
+
+        #endregion API
 
         #region Helpers
 
-        private void UnsubscribeHooks()
+        public void UnsubscribeHooks()
         {
             Unsubscribe(nameof(OnBetterChat));
 #if RUST
@@ -379,17 +462,23 @@ namespace Oxide.Plugins
 #endif
             Unsubscribe(nameof(OnUserConnected));
             Unsubscribe(nameof(OnUserNameUpdated));
+            if (!_configData.GlobalSettings.UFilterPlayerNames)
+            {
+                Unsubscribe(nameof(OnPluginLoaded));
+                Unsubscribe(nameof(OnProfanityAdded));
+                Unsubscribe(nameof(RemoveProfanity));
+            }
         }
 
-        private void SubscribeHooks()
+        public void SubscribeHooks()
         {
-            if (_configData.FilterPlayerNames)
+            if (_configData.GlobalSettings.FilterPlayerNames)
             {
                 Subscribe(nameof(OnUserConnected));
                 Subscribe(nameof(OnUserNameUpdated));
             }
 
-            if (_configData.FilterChatMessages)
+            if (_configData.GlobalSettings.FilterChatMessages)
             {
                 Subscribe(nameof(OnBetterChat));
 #if RUST
@@ -400,17 +489,17 @@ namespace Oxide.Plugins
             }
         }
 
-        private bool IsPluginLoaded(Plugin plugin) => plugin != null && plugin.IsLoaded;
+        public bool IsPluginLoaded(Plugin plugin) => plugin != null && plugin.IsLoaded;
 
-        private void Log(string text)
+        public void Log(string text)
         {
-            if (_configData.LoggingEnabled)
+            if (_configData.GlobalSettings.LoggingEnabled)
             {
                 LogToFile("log", $"{DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss")} {text}", this);
             }
         }
 
-        private void Broadcast(IPlayer sender, string text, int channel = 0)
+        public void Broadcast(IPlayer sender, string text, int channel = 0)
         {
 #if RUST
             foreach (IPlayer target in players.Connected)

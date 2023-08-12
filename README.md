@@ -20,39 +20,47 @@ All checks are disabled by default, so you can install plugin safely and then ch
 
 ```json
 {
-  "Enable logging": false,
-  "Filter player names": false,
-  "Filter chat messages": false,
-  "Use regex": false,
-  "Regex spam list": [
-    "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
-    "(:\\d{3,5})",
-    "(https|http|ftp|):\\/\\/",
-    "((\\p{L}|[0-9]|-) \\.) (com|org|net|int|edu|gov|mil|ch|cn|co|de|eu|fr|in|nz|ru|tk|tr|uk|us)",
-    "((\\p{L}|[0-9]|-) \\.) (ua|pro|io|dev|me|ml|tk|ml|ga|cf|gq|tf|money|pl|gg|net|info|cz|sk|nl)",
-    "((\\p{L}|[0-9]|-) \\.) (store|shop)",
-    "(\\# (. )?rust(. )?)",
-    "((. )?rust(. )?\\# )"
-  ],
-  "Regex impersonation list": [
-    "([Ааa4][Ддd][Ммm][Ииi1][Ннn])",
-    "([Ммm][Ооo0][Ддd][Ееe3][Ррr])"
-  ],
-  "Use impersonation blacklist": false,
-  "Impersonation blacklist": [
-    "Admin",
-    "Administrator",
-    "Moder",
-    "Moderator"
-  ],
-  "Use spam blacklist": false,
-  "Spam blacklist": [
-    "#SPAMRUST",
-    "#BESTRUST"
-  ],
-  "Replacement for impersonation": "",
-  "Replacement for spam": "",
-  "Replacement for empty name": "Player-"
+  "Global settings": {
+    "Enable logging": false,
+    "Filter chat messages": false,
+    "Filter player names": false,
+    "Use UFilter plugin on player names": false,
+    "Replacement for empty name": "Player-"
+  },
+  "Spam settings": {
+    "Use regex": false,
+    "Regex list": [
+      "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
+      "(:\\d{3,5})",
+      "(https|http|ftp|):\\/\\/",
+      "((\\p{L}|[0-9]|-)+\\.)+(com|org|net|int|edu|gov|mil|ch|cn|co|de|eu|fr|in|nz|ru|tk|tr|uk|us)",
+      "((\\p{L}|[0-9]|-)+\\.)+(ua|pro|io|dev|me|ml|tk|ml|ga|cf|gq|tf|money|pl|gg|net|info|cz|sk|nl)",
+      "((\\p{L}|[0-9]|-)+\\.)+(store|shop)",
+      "(\\#+(.+)?rust(.+)?)",
+      "((.+)?rust(.+)?\\#+)"
+    ],
+    "Use blacklist": false,
+    "Blacklist": [
+      "#SPAMRUST",
+      "#BESTRUST"
+    ],
+    "Replacement for spam": ""
+  },
+  "Impersonation settings": {
+    "Use regex": false,
+    "Regex list": [
+      "([Ааa4][Ддd][Ммm][Ииi1][Ннn])",
+      "([Ммm][Ооo0][Ддd][Ееe3][Ррr])"
+    ],
+    "Use blacklist": false,
+    "Blacklist": [
+      "Admin",
+      "Administrator",
+      "Moder",
+      "Moderator"
+    ],
+    "Replacement for impersonation": ""
+  }
 }
 ```
 
