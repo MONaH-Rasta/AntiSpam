@@ -14,7 +14,7 @@ All checks are disabled by default, so you can install plugin safely and then ch
 
 ## Permissions
 
-* `antispam.immune` -- Allows player to not being checked by this plugin
+* `antispam.immunity` -- Allows player to not being checked by this plugin
 
 ##  Configuration
 
