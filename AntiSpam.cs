@@ -12,10 +12,10 @@ using Pool = Facepunch.Pool;
 
 namespace Oxide.Plugins
 {
-    [Info("Anti Spam", "MON@H", "2.1.0")]
+    [Info("Anti Spam", "MON@H", "2.1.1")]
     [Description("Filters spam and impersonation in player names and chat messages.")]
 
-    class AntiSpam : CovalencePlugin
+    public class AntiSpam : CovalencePlugin
     {
         #region Variables
 
@@ -270,7 +270,7 @@ namespace Oxide.Plugins
 
             if (pattern.Count > 0)
             {
-                _regexSpam = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                _regexSpam = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
             pattern.Clear();
@@ -290,7 +290,7 @@ namespace Oxide.Plugins
 
             if (pattern.Count > 0)
             {
-                _regexImpersonation = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                _regexImpersonation = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
             Pool.FreeList(ref pattern);
@@ -334,7 +334,7 @@ namespace Oxide.Plugins
             if (pattern.Count > 0)
             {
                 pattern.Sort();
-                _regexProfanities = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+                _regexProfanities = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
             Pool.FreeList(ref pattern);
