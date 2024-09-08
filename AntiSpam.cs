@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using System.Text;
 
 using Newtonsoft.Json;
 using Oxide.Core;
@@ -12,12 +11,12 @@ using Pool = Facepunch.Pool;
 
 namespace Oxide.Plugins
 {
-    [Info("Anti Spam", "MON@H", "2.1.1")]
+    [Info("Anti Spam", "MON@H", "2.1.2")]
     [Description("Filters spam and impersonation in player names and chat messages.")]
 
     public class AntiSpam : CovalencePlugin
     {
-        #region Variables
+        #region Class Fields
 
         [PluginReference] private readonly Plugin BetterChat;
 
@@ -26,21 +25,22 @@ namespace Oxide.Plugins
         private const string ColorDeveloper = "#FFAA55";
         private const string ColorPlayer = "#55AAFF";
 
-        private readonly StringBuilder _sb = new StringBuilder();
-        
-        private Regex _regexSpam;
-        private Regex _regexImpersonation;
-        private Regex _regexProfanities;
+        private static readonly object _true = true;
 
-        private readonly object _true = true;
+        private readonly Regexes _regex = new();
 
-        #endregion Variables
+        public class Regexes
+        {
+            public Regex Spam { get; set; }
+            public Regex Impersonation { get; set; }
+            public Regex Profanities { get; set; }
+        }
+
+        #endregion Class Fields
 
         #region Initialization
-        private void Init()
-        {
-            UnsubscribeHooks();
-        }
+
+        private void Init() => UnsubscribeHooks();
 
         private void OnServerInitialized()
         {
@@ -69,13 +69,13 @@ namespace Oxide.Plugins
         private class ConfigData
         {
             [JsonProperty(PropertyName = "Global settings")]
-            public GlobalSettings GlobalSettings = new GlobalSettings();
+            public GlobalSettings GlobalSettings = new();
 
             [JsonProperty(PropertyName = "Spam settings")]
-            public SpamSettings SpamSettings = new SpamSettings();
+            public SpamSettings SpamSettings = new();
 
             [JsonProperty(PropertyName = "Impersonation settings")]
-            public ImpersonationSettings ImpersonationSettings = new ImpersonationSettings();
+            public ImpersonationSettings ImpersonationSettings = new();
         }
 
         private class GlobalSettings
@@ -102,7 +102,7 @@ namespace Oxide.Plugins
             public bool UseRegex = false;
 
             [JsonProperty(PropertyName = "Regex list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> RegexList = new List<string>()
+            public List<string> RegexList = new()
             {
                 "(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
                 "(:\\d{3,5})",
@@ -118,7 +118,7 @@ namespace Oxide.Plugins
             public bool UseBlacklist = false;
 
             [JsonProperty(PropertyName = "Blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> Blacklist = new List<string>()
+            public List<string> Blacklist = new()
             {
                 "#SPAMRUST",
                 "#BESTRUST"
@@ -134,7 +134,7 @@ namespace Oxide.Plugins
             public bool UseRegex = false;
 
             [JsonProperty(PropertyName = "Regex list", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> RegexList = new List<string>()
+            public List<string> RegexList = new()
             {
                 "([Ааa4][Ддd][Ммm][Ииi1][Ннn])",
                 "([Ммm][Ооo0][Ддd][Ееe3][Ррr])"
@@ -144,7 +144,7 @@ namespace Oxide.Plugins
             public bool UseBlacklist = false;
 
             [JsonProperty(PropertyName = "Blacklist", ObjectCreationHandling = ObjectCreationHandling.Replace)]
-            public List<string> Blacklist = new List<string>()
+            public List<string> Blacklist = new()
             {
                 "Admin",
                 "Administrator",
@@ -179,7 +179,7 @@ namespace Oxide.Plugins
         protected override void LoadDefaultConfig()
         {
             PrintWarning("Creating a new configuration file");
-            _configData = new ConfigData();
+            _configData = new();
         }
 
         protected override void SaveConfig() => Config.WriteObject(_configData);
@@ -253,7 +253,7 @@ namespace Oxide.Plugins
 
         public void CacheRegex()
         {
-            List<string> pattern = Pool.GetList<string>();
+            List<string> pattern = Pool.Get<List<string>>();
 
             if (_configData.SpamSettings.UseRegex)
             {
@@ -270,7 +270,7 @@ namespace Oxide.Plugins
 
             if (pattern.Count > 0)
             {
-                _regexSpam = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+                _regex.Spam = new(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
             pattern.Clear();
@@ -290,17 +290,17 @@ namespace Oxide.Plugins
 
             if (pattern.Count > 0)
             {
-                _regexImpersonation = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+                _regex.Impersonation = new(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
-            Pool.FreeList(ref pattern);
+            Pool.FreeUnmanaged(ref pattern);
         }
 
         public void CacheProfanities()
         {
             if (!_configData.GlobalSettings.UFilterPlayerNames)
             {
-                _regexProfanities = null;
+                _regex.Profanities = null;
                 return;
             }
 
@@ -318,7 +318,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            List<string> pattern = Pool.GetList<string>();
+            List<string> pattern = Pool.Get<List<string>>();
 
             string[] profanities = plugin.Call("GetProfanities") as string[] ?? Array.Empty<string>();
             string[] allowedProfanity = plugin.Call("GetAllowedProfanity") as string[] ?? Array.Empty<string>();
@@ -334,10 +334,10 @@ namespace Oxide.Plugins
             if (pattern.Count > 0)
             {
                 pattern.Sort();
-                _regexProfanities = new Regex(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+                _regex.Profanities = new(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
 
-            Pool.FreeList(ref pattern);
+            Pool.FreeUnmanaged(ref pattern);
         }
 
         public void HandleName(IPlayer player)
@@ -389,9 +389,9 @@ namespace Oxide.Plugins
 
             string newName = GetSpamFreeText(player.Name);
             newName = GetImpersonationFreeText(newName);
-            if (_regexProfanities != null)
+            if (_regex.Profanities != null)
             {
-                newName = _regexProfanities.Replace(newName, _configData.SpamSettings.Replacement);
+                newName = _regex.Profanities.Replace(newName, _configData.SpamSettings.Replacement);
             }
 
             if (string.IsNullOrWhiteSpace(newName))
@@ -431,7 +431,7 @@ namespace Oxide.Plugins
                 return string.Empty;
             }
 
-            return _regexSpam != null ? _regexSpam.Replace(text, _configData.SpamSettings.Replacement) : text;
+            return _regex.Spam != null ? _regex.Spam.Replace(text, _configData.SpamSettings.Replacement) : text;
         }
 
         private string GetImpersonationFreeText(string text)
@@ -441,12 +441,12 @@ namespace Oxide.Plugins
                 return string.Empty;
             }
 
-            return _regexImpersonation != null ? _regexImpersonation.Replace(text, _configData.SpamSettings.Replacement) : text;
+            return _regex.Impersonation != null ? _regex.Impersonation.Replace(text, _configData.SpamSettings.Replacement) : text;
         }
 
-        private Regex GetRegexImpersonation() => _regexImpersonation;
-        private Regex GetRegexProfanities() => _regexProfanities;
-        private Regex GetRegexSpam() => _regexSpam;
+        private Regex GetRegexImpersonation() => _regex.Impersonation;
+        private Regex GetRegexProfanities() => _regex.Profanities;
+        private Regex GetRegexSpam() => _regex.Spam;
 
         #endregion API
 
@@ -495,7 +495,7 @@ namespace Oxide.Plugins
         {
             if (_configData.GlobalSettings.LoggingEnabled)
             {
-                LogToFile("log", $"{DateTime.Now.ToString("yyyy.MM.dd HH:mm:ss")} {text}", this);
+                LogToFile("log", $"{DateTime.Now:yyyy.MM.dd HH:mm:ss} {text}", this);
             }
         }
 
