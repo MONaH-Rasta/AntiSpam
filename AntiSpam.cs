@@ -7,8 +7,6 @@ using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Core.Plugins;
 
-using Pool = Facepunch.Pool;
-
 namespace Oxide.Plugins
 {
     [Info("Anti Spam", "MON@H", "2.1.2")]
@@ -253,7 +251,7 @@ namespace Oxide.Plugins
 
         public void CacheRegex()
         {
-            List<string> pattern = Pool.Get<List<string>>();
+            List<string> pattern = new();
 
             if (_configData.SpamSettings.UseRegex)
             {
@@ -292,8 +290,6 @@ namespace Oxide.Plugins
             {
                 _regex.Impersonation = new(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
-
-            Pool.FreeUnmanaged(ref pattern);
         }
 
         public void CacheProfanities()
@@ -318,7 +314,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            List<string> pattern = Pool.Get<List<string>>();
+            List<string> pattern = new();
 
             string[] profanities = plugin.Call("GetProfanities") as string[] ?? Array.Empty<string>();
             string[] allowedProfanity = plugin.Call("GetAllowedProfanity") as string[] ?? Array.Empty<string>();
@@ -336,8 +332,6 @@ namespace Oxide.Plugins
                 pattern.Sort();
                 _regex.Profanities = new(string.Join("|", pattern), RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
             }
-
-            Pool.FreeUnmanaged(ref pattern);
         }
 
         public void HandleName(IPlayer player)
