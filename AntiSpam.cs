@@ -9,7 +9,7 @@ using Oxide.Core.Plugins;
 
 namespace Oxide.Plugins
 {
-    [Info("Anti Spam", "MON@H", "2.1.2")]
+    [Info("Anti Spam", "MON@H", "2.1.3")]
     [Description("Filters spam and impersonation in player names and chat messages.")]
 
     public class AntiSpam : CovalencePlugin
