@@ -374,28 +374,6 @@ namespace Oxide.Plugins
             return null;
         }
 
-        public string GetClearName(IPlayer player)
-        {
-            if (permission.UserHasPermission(player.Id, PermissionImmunity))
-            {
-                return player.Name;
-            }
-
-            string newName = GetSpamFreeText(player.Name);
-            newName = GetImpersonationFreeText(newName);
-            if (_regex.Profanities != null)
-            {
-                newName = _regex.Profanities.Replace(newName, _configData.SpamSettings.Replacement);
-            }
-
-            if (string.IsNullOrWhiteSpace(newName))
-            {
-                newName = $"{_configData.GlobalSettings.ReplacementEmptyName}{player.Id.Substring(11, 6)}";
-            }
-
-            return newName.Trim();
-        }
-
         public string GetSpamFreeMessage(IPlayer player, string message)
         {
             if (player == null || string.IsNullOrWhiteSpace(message))
@@ -417,6 +395,28 @@ namespace Oxide.Plugins
         #endregion Core Methods
 
         #region API
+
+        private string GetClearName(IPlayer player)
+        {
+            if (permission.UserHasPermission(player.Id, PermissionImmunity))
+            {
+                return player.Name;
+            }
+
+            string newName = GetSpamFreeText(player.Name);
+            newName = GetImpersonationFreeText(newName);
+            if (_regex.Profanities != null)
+            {
+                newName = _regex.Profanities.Replace(newName, _configData.SpamSettings.Replacement);
+            }
+
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                newName = $"{_configData.GlobalSettings.ReplacementEmptyName}{player.Id.Substring(11, 6)}";
+            }
+
+            return newName.Trim();
+        }
 
         private string GetSpamFreeText(string text)
         {
